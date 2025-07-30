@@ -208,11 +208,156 @@ function toggleMasterPassword() {
   const toggle = document.getElementById("toggleMasterPassword")
   if (input.type === "password") {
     input.type = "text"
-    toggle.textContent = "Hide" // Icon mắt mở
+    toggle.classList.remove("fa-eye")
+    toggle.classList.add("fa-eye-slash")
   } else {
     input.type = "password"
-    toggle.textContent = "Show" // Icon mắt đóng
+    toggle.classList.remove("fa-eye-slash")
+    toggle.classList.add("fa-eye")
   }
+}
+
+function exportCredentials() {
+  chrome.storage.local.get(["credentials"], function (result) {
+    const credentials = result.credentials || []
+    // Giải mã mật khẩu trước khi export
+    const exportData = credentials.map((cred) => ({
+      url: cred.url,
+      username: cred.username,
+      password: CryptoJS.AES.decrypt(cred.password, "secret-key-123").toString(
+        CryptoJS.enc.Utf8
+      ),
+      timestamp: cred.timestamp,
+    }))
+    const json = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([json], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+
+    // Kiểm tra chrome.downloads API
+    if (chrome.downloads && typeof chrome.downloads.download === "function") {
+      chrome.downloads.download(
+        {
+          url: url,
+          filename: `password_manager_backup_${
+            new Date().toISOString().split("T")[0]
+          }.json`,
+          saveAs: true,
+        },
+        function (downloadId) {
+          if (downloadId) {
+            alert("Credentials exported successfully")
+          } else {
+            alert("Failed to export credentials")
+          }
+          URL.revokeObjectURL(url)
+        }
+      )
+    } else {
+      // Phương án dự phòng: dùng thẻ <a>
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `password_manager_backup_${
+        new Date().toISOString().split("T")[0]
+      }.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      alert("Credentials exported successfully (fallback method)")
+      URL.revokeObjectURL(url)
+    }
+  })
+}
+
+function importCredentials(event) {
+  const file = event.target.files[0]
+  if (!file) {
+    alert("Please select a JSON file")
+    return
+  }
+  if (!file.name.endsWith(".json")) {
+    alert("Please select a valid JSON file")
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = function (e) {
+    try {
+      const importedData = JSON.parse(e.target.result)
+      if (!Array.isArray(importedData)) {
+        alert("Invalid JSON format: Expected an array of credentials")
+        return
+      }
+
+      const validCredentials = importedData.filter(
+        (cred) => cred.url && cred.username && cred.password && cred.timestamp
+      )
+      if (validCredentials.length === 0) {
+        alert("No valid credentials found in the file")
+        return
+      }
+
+      chrome.storage.local.get(["credentials"], function (result) {
+        const existingCredentials = result.credentials || []
+        const newCredentials = validCredentials
+          .map((cred) => {
+            let hostname
+            try {
+              hostname = new URL(
+                cred.url.startsWith("http") ? cred.url : `https://${cred.url}`
+              ).hostname
+            } catch (e) {
+              console.error("Invalid URL in imported data:", cred.url)
+              return null
+            }
+            return {
+              url: hostname,
+              username: cred.username,
+              password: CryptoJS.AES.encrypt(
+                cred.password,
+                "secret-key-123"
+              ).toString(),
+              timestamp: cred.timestamp,
+            }
+          })
+          .filter((cred) => cred !== null)
+
+        // Kiểm tra trùng lặp
+        const mergedCredentials = [...existingCredentials]
+        newCredentials.forEach((newCred) => {
+          const isDuplicate = existingCredentials.some(
+            (existing) =>
+              existing.url === newCred.url &&
+              existing.username === newCred.username &&
+              CryptoJS.AES.decrypt(
+                existing.password,
+                "secret-key-123"
+              ).toString(CryptoJS.enc.Utf8) ===
+                CryptoJS.AES.decrypt(
+                  newCred.password,
+                  "secret-key-123"
+                ).toString(CryptoJS.enc.Utf8)
+          )
+          if (!isDuplicate) {
+            mergedCredentials.push(newCred)
+          }
+        })
+
+        chrome.storage.local.set(
+          { credentials: mergedCredentials },
+          function () {
+            alert(
+              `Imported ${newCredentials.length} new credentials successfully`
+            )
+            displayCredentials()
+            document.getElementById("importFileInput").value = ""
+          }
+        )
+      })
+    } catch (e) {
+      alert("Error parsing JSON file: " + e.message)
+    }
+  }
+  reader.readAsText(file)
 }
 
 function displayCredentials() {
@@ -320,6 +465,17 @@ document.addEventListener("DOMContentLoaded", function () {
   document
     .getElementById("toggleMasterPassword")
     .addEventListener("click", toggleMasterPassword)
+  document
+    .getElementById("exportButton")
+    .addEventListener("click", exportCredentials)
+  document
+    .getElementById("importButton")
+    .addEventListener("click", function () {
+      document.getElementById("importFileInput").click()
+    })
+  document
+    .getElementById("importFileInput")
+    .addEventListener("change", importCredentials)
 
   document
     .getElementById("newUrl")
