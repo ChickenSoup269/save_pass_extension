@@ -26,6 +26,11 @@ function startTimer(authTimestamp) {
       chrome.storage.local.set({ authTimestamp: null })
     } else {
       timerElement.textContent = formatTime(timeLeft)
+      if (timeLeft <= 10) {
+        timerElement.classList.add("warning")
+      } else {
+        timerElement.classList.remove("warning")
+      }
     }
   }
 
@@ -46,6 +51,7 @@ function setMasterPassword() {
       {
         masterPassword: encryptedMasterPassword,
         authTimestamp: null,
+        tempCredential: null,
       },
       function () {
         document.getElementById("setPasswordSection").classList.add("hidden")
@@ -74,9 +80,12 @@ function authenticate() {
           document.getElementById("authSection").classList.add("hidden")
           document
             .getElementById("addCredentialSection")
-            .classList.remove("hidden")
+            .classList.add("hidden")
           document.getElementById("credentialsList").style.display = "block"
+          document.getElementById("showAddFormButton").textContent =
+            "Show Add Credential Form"
           displayCredentials()
+          restoreTempCredential()
           startTimer(authTimestamp)
         })
       } else {
@@ -86,6 +95,34 @@ function authenticate() {
       alert("Master password not set")
     }
   })
+}
+
+function saveTempCredential() {
+  const url = document.getElementById("newUrl").value.trim()
+  const username = document.getElementById("newUsername").value.trim()
+  const password = document.getElementById("newPassword").value.trim()
+  chrome.storage.local.set({
+    tempCredential: { url, username, password },
+  })
+}
+
+function restoreTempCredential() {
+  chrome.storage.local.get(["tempCredential"], function (result) {
+    if (result.tempCredential) {
+      document.getElementById("newUrl").value = result.tempCredential.url || ""
+      document.getElementById("newUsername").value =
+        result.tempCredential.username || ""
+      document.getElementById("newPassword").value =
+        result.tempCredential.password || ""
+    }
+  })
+}
+
+function clearForm() {
+  document.getElementById("newUrl").value = ""
+  document.getElementById("newUsername").value = ""
+  document.getElementById("newPassword").value = ""
+  chrome.storage.local.set({ tempCredential: null })
 }
 
 function addCredential() {
@@ -98,7 +135,6 @@ function addCredential() {
     return
   }
 
-  // Chuẩn hóa URL thành hostname
   let hostname
   try {
     hostname = new URL(url.startsWith("http") ? url : `https://${url}`).hostname
@@ -139,12 +175,44 @@ function addCredential() {
           document.getElementById("newUrl").value = ""
           document.getElementById("newUsername").value = ""
           document.getElementById("newPassword").value = ""
+          document
+            .getElementById("addCredentialSection")
+            .classList.add("hidden")
+          document.getElementById("showAddFormButton").textContent =
+            "Show Add Credential Form"
+          chrome.storage.local.set({ tempCredential: null })
           alert("Credential added successfully")
           displayCredentials()
         }
       }
     )
   })
+}
+
+function toggleAddForm() {
+  const addSection = document.getElementById("addCredentialSection")
+  const button = document.getElementById("showAddFormButton")
+  if (addSection.classList.contains("hidden")) {
+    addSection.classList.remove("hidden")
+    button.textContent = "Hide Add Credential Form"
+    restoreTempCredential()
+  } else {
+    addSection.classList.add("hidden")
+    button.textContent = "Show Add Credential Form"
+    saveTempCredential()
+  }
+}
+
+function toggleMasterPassword() {
+  const input = document.getElementById("masterPassword")
+  const toggle = document.getElementById("toggleMasterPassword")
+  if (input.type === "password") {
+    input.type = "text"
+    toggle.textContent = "Hide" // Icon mắt mở
+  } else {
+    input.type = "password"
+    toggle.textContent = "Show" // Icon mắt đóng
+  }
 }
 
 function displayCredentials() {
@@ -216,11 +284,12 @@ document.addEventListener("DOMContentLoaded", function () {
       ) {
         document.getElementById("setPasswordSection").classList.add("hidden")
         document.getElementById("authSection").classList.add("hidden")
-        document
-          .getElementById("addCredentialSection")
-          .classList.remove("hidden")
+        document.getElementById("addCredentialSection").classList.add("hidden")
         document.getElementById("credentialsList").style.display = "block"
+        document.getElementById("showAddFormButton").textContent =
+          "Show Add Credential Form"
         displayCredentials()
+        restoreTempCredential()
         startTimer(result.authTimestamp)
       } else {
         document.getElementById("setPasswordSection").classList.add("hidden")
@@ -242,4 +311,23 @@ document.addEventListener("DOMContentLoaded", function () {
   document
     .getElementById("addCredentialButton")
     .addEventListener("click", addCredential)
+  document
+    .getElementById("showAddFormButton")
+    .addEventListener("click", toggleAddForm)
+  document
+    .getElementById("clearFormButton")
+    .addEventListener("click", clearForm)
+  document
+    .getElementById("toggleMasterPassword")
+    .addEventListener("click", toggleMasterPassword)
+
+  document
+    .getElementById("newUrl")
+    .addEventListener("input", saveTempCredential)
+  document
+    .getElementById("newUsername")
+    .addEventListener("input", saveTempCredential)
+  document
+    .getElementById("newPassword")
+    .addEventListener("input", saveTempCredential)
 })
