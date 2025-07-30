@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Password Manager</title>
+    <style>
+        body {
+            width: 350px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+        }
+
+        .credential {
+            border: 1px solid #ccc;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+
+        #authSection,
+        #setPasswordSection,
+        #addCredentialSection {
+            margin-bottom: 10px;
+        }
+
+        #credentialsList {
+            display: none;
+        }
+
+        .password {
+            font-family: monospace;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        input {
+            margin: 5px;
+            padding: 5px;
+            width: 90%;
+        }
+
+        #timer {
+            color: red;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="setPasswordSection" class="hidden">
+        <h2>Set Master Password</h2>
+        <input type="password" id="newMasterPassword" placeholder="Enter new master password">
+        <input type="password" id="confirmMasterPassword" placeholder="Confirm master password">
+        <button id="setPasswordButton">Set Password</button>
+    </div>
+    <div id="authSection">
+        <h2>Authenticate</h2>
+        <input type="password" id="masterPassword" placeholder="Enter master password">
+        <button id="authButton">Unlock</button>
+    </div>
+    <div id="addCredentialSection" class="hidden">
+        <h2>Add Credential</h2>
+        <input type="text" id="newUrl" placeholder="Enter website URL (e.g., example.com)">
+        <input type="text" id="newUsername" placeholder="Enter username">
+        <input type="password" id="newPassword" placeholder="Enter password">
+        <button id="addCredentialButton">Add Credential</button>
+    </div>
+    <div id="credentialsList">
+        <div id="timer">Session expires in 1:30</div>
+        <h2>Saved Credentials</h2>
+        <div id="credentials"></div>
+        <button id="clearCredentialsButton">Clear All</button>
+    </div>
+    <script src="crypto-js.min.js"></script>
+    <script src="popup.js"></script>
+</body>
+
+</html>

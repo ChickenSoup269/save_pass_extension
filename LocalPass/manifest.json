@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Password Manager",
+  "version": "1.4",
+  "description": "A password manager extension with user-defined master password and autofill",
+  "permissions": ["activeTab", "storage", "scripting", "contextMenus"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["crypto-js.min.js", "content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["crypto-js.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
