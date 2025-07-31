@@ -2,6 +2,8 @@
 <html>
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Password Manager</title>
     <style>
         body {
@@ -43,7 +45,8 @@
 
         #authSection,
         #setPasswordSection,
-        #addCredentialSection {
+        #addCredentialSection,
+        #settingsSection {
             margin-bottom: 15px;
             background-color: #fff;
             padding: 10px;
@@ -51,7 +54,8 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
-        #credentialsList {
+        #credentialsList,
+        #settingsSection {
             display: none;
         }
 
@@ -64,7 +68,8 @@
             display: none;
         }
 
-        input {
+        input,
+        select {
             margin: 5px 0;
             padding: 8px;
             width: calc(100% - 16px);
@@ -113,12 +118,22 @@
             background-color: #138496;
         }
 
-        #importButton {
+        #importButton,
+        #showSettingsButton {
             background-color: #6f42c1;
         }
 
-        #importButton:hover {
+        #importButton:hover,
+        #showSettingsButton:hover {
             background-color: #5a32a3;
+        }
+
+        #saveSettingsButton {
+            background-color: #007bff;
+        }
+
+        #saveSettingsButton:hover {
+            background-color: #0056b3;
         }
 
         .showPassMaster {
@@ -154,6 +169,38 @@
             vertical-align: middle;
         }
 
+        #notification {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            font-size: 0.9em;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            z-index: 1000;
+            max-width: 300px;
+            text-align: center;
+        }
+
+        #notification.success {
+            background-color: #28a745;
+        }
+
+        #notification.error {
+            background-color: #dc3545;
+        }
+
+        #notification.info {
+            background-color: #007bff;
+        }
+
+        #notification.visible {
+            opacity: 1;
+        }
+
         @keyframes pulse {
             0% {
                 opacity: 1;
@@ -171,6 +218,7 @@
 </head>
 
 <body>
+    <div id="notification"></div>
     <div id="setPasswordSection" class="hidden">
         <h2>Set Master Password</h2>
         <input type="password" id="newMasterPassword" placeholder="Enter new master password">
@@ -199,10 +247,25 @@
         <button id="showAddFormButton">Show Add Credential Form</button>
         <button id="exportButton">Export to JSON</button>
         <button id="importButton">Import from JSON</button>
+        <button id="showSettingsButton">Settings</button>
         <input type="file" id="importFileInput" accept=".json" style="display: none;">
         <div id="credentials"></div>
         <button id="clearCredentialsButton">Clear All</button>
         <button id="logoutButton">Logout</button>
+    </div>
+    <div id="settingsSection" class="hidden">
+        <h2>Settings</h2>
+        <label for="sessionTimeoutInput">Session Timeout (seconds):</label>
+        <input type="number" id="sessionTimeoutInput" min="30" max="3600" placeholder="Enter timeout in seconds">
+        <label for="passwordMaskStyle">Password Mask Style:</label>
+        <select id="passwordMaskStyle">
+            <option value="dots">Dots (10) (••••••••••)</option>
+            <option value="asterisks">Asterisks (**********)</option>
+            <option value="custom">Custom</option>
+        </select>
+        <input type="text" id="customMaskInput" placeholder="Enter custom mask character (e.g., ●)" maxlength="1"
+            style="display: none;">
+        <button id="saveSettingsButton">Save Settings</button>
     </div>
     <script src="crypto-js.min.js"></script>
     <script src="popup.js"></script>

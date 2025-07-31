@@ -6,36 +6,53 @@ function formatTime(seconds) {
   return `Session expires in ${minutes}:${secs.toString().padStart(2, "0")}`
 }
 
+function showNotification(message, type = "info") {
+  const notification = document.getElementById("notification")
+  notification.textContent = message
+  notification.className = type // success, error, or info
+  notification.classList.add("visible")
+  setTimeout(() => {
+    notification.classList.remove("visible")
+    setTimeout(() => {
+      notification.textContent = ""
+      notification.className = ""
+    }, 300) // Wait for fade-out transition
+  }, 3000) // Display for 3 seconds
+}
+
 function startTimer(authTimestamp) {
-  const authTimeout = 90 * 1000 // 90 giây
-  const timerElement = document.getElementById("timer")
+  chrome.storage.local.get(["sessionTimeout"], function (result) {
+    const authTimeout = (result.sessionTimeout || 90) * 1000 // Mặc định 90 giây
+    const timerElement = document.getElementById("timer")
 
-  function updateTimer() {
-    const now = Date.now()
-    const timeLeft = Math.max(
-      0,
-      Math.floor((authTimestamp + authTimeout - now) / 1000)
-    )
+    function updateTimer() {
+      const now = Date.now()
+      const timeLeft = Math.max(
+        0,
+        Math.floor((authTimestamp + authTimeout - now) / 1000)
+      )
 
-    if (timeLeft <= 0) {
-      clearInterval(timerInterval)
-      timerElement.textContent = "Session expired"
-      document.getElementById("credentialsList").style.display = "none"
-      document.getElementById("addCredentialSection").classList.add("hidden")
-      document.getElementById("authSection").classList.remove("hidden")
-      chrome.storage.local.set({ authTimestamp: null })
-    } else {
-      timerElement.textContent = formatTime(timeLeft)
-      if (timeLeft <= 10) {
-        timerElement.classList.add("warning")
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval)
+        timerElement.textContent = "Session expired"
+        document.getElementById("credentialsList").style.display = "none"
+        document.getElementById("addCredentialSection").classList.add("hidden")
+        document.getElementById("settingsSection").classList.add("hidden")
+        document.getElementById("authSection").classList.remove("hidden")
+        chrome.storage.local.set({ authTimestamp: null })
       } else {
-        timerElement.classList.remove("warning")
+        timerElement.textContent = formatTime(timeLeft)
+        if (timeLeft <= 10) {
+          timerElement.classList.add("warning")
+        } else {
+          timerElement.classList.remove("warning")
+        }
       }
     }
-  }
 
-  updateTimer()
-  timerInterval = setInterval(updateTimer, 1000)
+    updateTimer()
+    timerInterval = setInterval(updateTimer, 1000)
+  })
 }
 
 function setMasterPassword() {
@@ -58,11 +75,11 @@ function setMasterPassword() {
         document.getElementById("authSection").classList.remove("hidden")
         document.getElementById("newMasterPassword").value = ""
         document.getElementById("confirmMasterPassword").value = ""
-        alert("Master password set successfully")
+        showNotification("Master password set successfully", "success")
       }
     )
   } else {
-    alert("Passwords do not match or are empty")
+    showNotification("Passwords do not match or are empty", "error")
   }
 }
 
@@ -81,6 +98,7 @@ function authenticate() {
           document
             .getElementById("addCredentialSection")
             .classList.add("hidden")
+          document.getElementById("settingsSection").classList.add("hidden")
           document.getElementById("credentialsList").style.display = "block"
           document.getElementById("showAddFormButton").textContent =
             "Show Add Credential Form"
@@ -89,10 +107,10 @@ function authenticate() {
           startTimer(authTimestamp)
         })
       } else {
-        alert("Incorrect master password")
+        showNotification("Incorrect master password", "error")
       }
     } else {
-      alert("Master password not set")
+      showNotification("Master password not set", "error")
     }
   })
 }
@@ -123,6 +141,7 @@ function clearForm() {
   document.getElementById("newUsername").value = ""
   document.getElementById("newPassword").value = ""
   chrome.storage.local.set({ tempCredential: null })
+  showNotification("Form cleared", "info")
 }
 
 function addCredential() {
@@ -131,7 +150,7 @@ function addCredential() {
   const password = document.getElementById("newPassword").value.trim()
 
   if (!url || !username || !password) {
-    alert("Please fill in all fields")
+    showNotification("Please fill in all fields", "error")
     return
   }
 
@@ -139,7 +158,7 @@ function addCredential() {
   try {
     hostname = new URL(url.startsWith("http") ? url : `https://${url}`).hostname
   } catch (e) {
-    alert("Invalid URL format")
+    showNotification("Invalid URL format", "error")
     return
   }
 
@@ -155,7 +174,7 @@ function addCredential() {
     )
 
     if (isDuplicate) {
-      alert("These credentials already exist")
+      showNotification("These credentials already exist", "error")
       return
     }
 
@@ -181,7 +200,7 @@ function addCredential() {
           document.getElementById("showAddFormButton").textContent =
             "Show Add Credential Form"
           chrome.storage.local.set({ tempCredential: null })
-          alert("Credential added successfully")
+          showNotification("Credential added successfully", "success")
           displayCredentials()
         }
       }
@@ -201,6 +220,76 @@ function toggleAddForm() {
     button.textContent = "Show Add Credential Form"
     saveTempCredential()
   }
+}
+
+function showSettings() {
+  const settingsSection = document.getElementById("settingsSection")
+  const credentialsList = document.getElementById("credentialsList")
+  const customMaskInput = document.getElementById("customMaskInput")
+  if (settingsSection.style.display === "none") {
+    settingsSection.style.display = "block"
+    credentialsList.style.display = "none"
+    chrome.storage.local.get(
+      ["sessionTimeout", "passwordMaskStyle", "customMaskChar"],
+      function (result) {
+        document.getElementById("sessionTimeoutInput").value =
+          result.sessionTimeout || 90
+        document.getElementById("passwordMaskStyle").value =
+          result.passwordMaskStyle || "dots"
+        customMaskInput.value = result.customMaskChar || "●"
+        customMaskInput.style.display =
+          result.passwordMaskStyle === "custom" ? "block" : "none"
+      }
+    )
+  } else {
+    settingsSection.style.display = "none"
+    credentialsList.style.display = "block"
+  }
+}
+
+function saveSettings() {
+  const sessionTimeout = parseInt(
+    document.getElementById("sessionTimeoutInput").value
+  )
+  const passwordMaskStyle = document.getElementById("passwordMaskStyle").value
+  const customMaskChar = document.getElementById("customMaskInput").value
+
+  if (isNaN(sessionTimeout) || sessionTimeout < 30 || sessionTimeout > 3600) {
+    showNotification(
+      "Please enter a valid timeout between 30 and 3600 seconds",
+      "error"
+    )
+    return
+  }
+
+  if (
+    passwordMaskStyle === "custom" &&
+    (!customMaskChar || customMaskChar.length !== 1)
+  ) {
+    showNotification("Please enter a single character for custom mask", "error")
+    return
+  }
+
+  chrome.storage.local.set(
+    {
+      sessionTimeout: sessionTimeout,
+      passwordMaskStyle: passwordMaskStyle,
+      customMaskChar: passwordMaskStyle === "custom" ? customMaskChar : null,
+    },
+    function () {
+      showNotification("Settings saved successfully", "success")
+      document.getElementById("settingsSection").style.display = "none"
+      document.getElementById("credentialsList").style.display = "block"
+      displayCredentials()
+      // Restart timer with new timeout
+      chrome.storage.local.get(["authTimestamp"], function (result) {
+        if (result.authTimestamp) {
+          clearInterval(timerInterval)
+          startTimer(result.authTimestamp)
+        }
+      })
+    }
+  )
 }
 
 function toggleMasterPassword() {
@@ -241,9 +330,9 @@ function exportCredentials() {
         },
         function (downloadId) {
           if (downloadId) {
-            alert("Credentials exported successfully")
+            showNotification("Credentials exported successfully", "success")
           } else {
-            alert("Failed to export credentials")
+            showNotification("Failed to export credentials", "error")
           }
           URL.revokeObjectURL(url)
         }
@@ -257,7 +346,10 @@ function exportCredentials() {
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-      alert("Credentials exported successfully (fallback method)")
+      showNotification(
+        "Credentials exported successfully (fallback method)",
+        "success"
+      )
       URL.revokeObjectURL(url)
     }
   })
@@ -266,11 +358,11 @@ function exportCredentials() {
 function importCredentials(event) {
   const file = event.target.files[0]
   if (!file) {
-    alert("Please select a JSON file")
+    showNotification("Please select a JSON file", "error")
     return
   }
   if (!file.name.endsWith(".json")) {
-    alert("Please select a valid JSON file")
+    showNotification("Please select a valid JSON file", "error")
     return
   }
 
@@ -279,7 +371,10 @@ function importCredentials(event) {
     try {
       const importedData = JSON.parse(e.target.result)
       if (!Array.isArray(importedData)) {
-        alert("Invalid JSON format: Expected an array of credentials")
+        showNotification(
+          "Invalid JSON format: Expected an array of credentials",
+          "error"
+        )
         return
       }
 
@@ -287,7 +382,7 @@ function importCredentials(event) {
         (cred) => cred.url && cred.username && cred.password && cred.timestamp
       )
       if (validCredentials.length === 0) {
-        alert("No valid credentials found in the file")
+        showNotification("No valid credentials found in the file", "error")
         return
       }
 
@@ -339,8 +434,9 @@ function importCredentials(event) {
         chrome.storage.local.set(
           { credentials: mergedCredentials },
           function () {
-            alert(
-              `Imported ${newCredentials.length} new credentials successfully`
+            showNotification(
+              `Imported ${newCredentials.length} new credentials successfully`,
+              "success"
             )
             displayCredentials()
             document.getElementById("importFileInput").value = ""
@@ -348,60 +444,88 @@ function importCredentials(event) {
         )
       })
     } catch (e) {
-      alert("Error parsing JSON file: " + e.message)
+      showNotification("Error parsing JSON file: " + e.message, "error")
     }
   }
   reader.readAsText(file)
 }
 
 function displayCredentials() {
-  chrome.storage.local.get(["credentials"], function (result) {
-    const list = document.getElementById("credentials")
-    list.innerHTML = ""
+  chrome.storage.local.get(
+    ["credentials", "passwordMaskStyle", "customMaskChar"],
+    function (result) {
+      const list = document.getElementById("credentials")
+      list.innerHTML = ""
+      let mask
+      if (result.passwordMaskStyle === "custom" && result.customMaskChar) {
+        mask = result.customMaskChar.repeat(8)
+      } else {
+        mask =
+          result.passwordMaskStyle === "asterisks" ? "**********" : "••••••••••"
+      }
 
-    if (result.credentials && result.credentials.length > 0) {
-      result.credentials.forEach((cred, index) => {
-        const decryptedPassword = CryptoJS.AES.decrypt(
-          cred.password,
-          "secret-key-123"
-        ).toString(CryptoJS.enc.Utf8)
-        const faviconUrl = `https://www.google.com/s2/favicons?domain=${cred.url}`
-        const div = document.createElement("div")
-        div.className = "credential"
-        div.innerHTML = `
+      if (result.credentials && result.credentials.length > 0) {
+        result.credentials.forEach((cred, index) => {
+          const decryptedPassword = CryptoJS.AES.decrypt(
+            cred.password,
+            "secret-key-123"
+          ).toString(CryptoJS.enc.Utf8)
+          const faviconUrl = `https://www.google.com/s2/favicons?domain=${cred.url}`
+          const div = document.createElement("div")
+          div.className = "credential"
+          div.innerHTML = `
                     <img src="${faviconUrl}" class="favicon" onerror="this.style.display='none'">
                     <strong>${cred.url}</strong><br>
                     Username: ${cred.username}<br>
-                    Password: <span class="password" data-password="${decryptedPassword}" id="password-${index}">••••••••</span>
+                    Password: <span class="password" data-password="${decryptedPassword}" id="password-${index}">${mask}</span>
                     <button class="toggle-password" data-index="${index}">Show</button><br>
                     Saved: ${new Date(cred.timestamp).toLocaleString()}
                 `
-        list.appendChild(div)
-      })
-
-      document.querySelectorAll(".toggle-password").forEach((button) => {
-        button.addEventListener("click", function () {
-          const index = this.getAttribute("data-index")
-          const passwordSpan = document.getElementById(`password-${index}`)
-          const originalPassword = passwordSpan.getAttribute("data-password")
-          if (this.textContent === "Show") {
-            passwordSpan.textContent = originalPassword
-            this.textContent = "Hide"
-          } else {
-            passwordSpan.textContent = "••••••••"
-            this.textContent = "Show"
-          }
+          list.appendChild(div)
         })
-      })
-    } else {
-      list.innerHTML = "No credentials saved"
+
+        document.querySelectorAll(".toggle-password").forEach((button) => {
+          button.addEventListener("click", function () {
+            const index = this.getAttribute("data-index")
+            const passwordSpan = document.getElementById(`password-${index}`)
+            const originalPassword = passwordSpan.getAttribute("data-password")
+            chrome.storage.local.get(
+              ["passwordMaskStyle", "customMaskChar"],
+              function (result) {
+                let mask
+                if (
+                  result.passwordMaskStyle === "custom" &&
+                  result.customMaskChar
+                ) {
+                  mask = result.customMaskChar.repeat(8)
+                } else {
+                  mask =
+                    result.passwordMaskStyle === "asterisks"
+                      ? "**********"
+                      : "••••••••••"
+                }
+                if (this.textContent === "Show") {
+                  passwordSpan.textContent = originalPassword
+                  this.textContent = "Hide"
+                } else {
+                  passwordSpan.textContent = mask
+                  this.textContent = "Show"
+                }
+              }
+            )
+          })
+        })
+      } else {
+        list.innerHTML = "No credentials saved"
+      }
     }
-  })
+  )
 }
 
 function clearCredentials() {
   if (confirm("Are you sure you want to clear all saved credentials?")) {
     chrome.storage.local.set({ credentials: [] }, function () {
+      showNotification("All credentials cleared", "info")
       displayCredentials()
     })
   }
@@ -412,21 +536,30 @@ function logout() {
   document.getElementById("timer").textContent = "Session expired"
   document.getElementById("credentialsList").style.display = "none"
   document.getElementById("addCredentialSection").classList.add("hidden")
+  document.getElementById("settingsSection").classList.add("hidden")
   document.getElementById("authSection").classList.remove("hidden")
   chrome.storage.local.set({ authTimestamp: null })
+  showNotification("Logged out", "info")
 }
 
 document.addEventListener("DOMContentLoaded", function () {
   chrome.storage.local.get(
-    ["masterPassword", "authTimestamp"],
+    [
+      "masterPassword",
+      "authTimestamp",
+      "sessionTimeout",
+      "passwordMaskStyle",
+      "customMaskChar",
+    ],
     function (result) {
       const now = Date.now()
-      const authTimeout = 90 * 1000 // 90 giây
+      const authTimeout = (result.sessionTimeout || 90) * 1000 // Mặc định 90 giây
 
       if (!result.masterPassword) {
         document.getElementById("setPasswordSection").classList.remove("hidden")
         document.getElementById("authSection").classList.add("hidden")
         document.getElementById("addCredentialSection").classList.add("hidden")
+        document.getElementById("settingsSection").classList.add("hidden")
         document.getElementById("credentialsList").style.display = "none"
       } else if (
         result.authTimestamp &&
@@ -435,6 +568,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("setPasswordSection").classList.add("hidden")
         document.getElementById("authSection").classList.add("hidden")
         document.getElementById("addCredentialSection").classList.add("hidden")
+        document.getElementById("settingsSection").classList.add("hidden")
         document.getElementById("credentialsList").style.display = "block"
         document.getElementById("showAddFormButton").textContent =
           "Show Add Credential Form"
@@ -445,6 +579,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("setPasswordSection").classList.add("hidden")
         document.getElementById("authSection").classList.remove("hidden")
         document.getElementById("addCredentialSection").classList.add("hidden")
+        document.getElementById("settingsSection").classList.add("hidden")
         document.getElementById("credentialsList").style.display = "none"
         chrome.storage.local.set({ authTimestamp: null })
       }
@@ -482,6 +617,12 @@ document.addEventListener("DOMContentLoaded", function () {
     .getElementById("importFileInput")
     .addEventListener("change", importCredentials)
   document.getElementById("logoutButton").addEventListener("click", logout)
+  document
+    .getElementById("showSettingsButton")
+    .addEventListener("click", showSettings)
+  document
+    .getElementById("saveSettingsButton")
+    .addEventListener("click", saveSettings)
 
   document
     .getElementById("newUrl")
@@ -492,4 +633,12 @@ document.addEventListener("DOMContentLoaded", function () {
   document
     .getElementById("newPassword")
     .addEventListener("input", saveTempCredential)
+
+  // Show/hide custom mask input based on selection
+  document
+    .getElementById("passwordMaskStyle")
+    .addEventListener("change", function () {
+      document.getElementById("customMaskInput").style.display =
+        this.value === "custom" ? "block" : "none"
+    })
 })
