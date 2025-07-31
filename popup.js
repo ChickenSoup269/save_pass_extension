@@ -208,19 +208,16 @@ function toggleMasterPassword() {
   const toggle = document.getElementById("toggleMasterPassword")
   if (input.type === "password") {
     input.type = "text"
-    toggle.classList.remove("fa-eye")
-    toggle.classList.add("fa-eye-slash")
+    toggle.textContent = "Hide"
   } else {
     input.type = "password"
-    toggle.classList.remove("fa-eye-slash")
-    toggle.classList.add("fa-eye")
+    toggle.textContent = "Show"
   }
 }
 
 function exportCredentials() {
   chrome.storage.local.get(["credentials"], function (result) {
     const credentials = result.credentials || []
-    // Giải mã mật khẩu trước khi export
     const exportData = credentials.map((cred) => ({
       url: cred.url,
       username: cred.username,
@@ -233,7 +230,6 @@ function exportCredentials() {
     const blob = new Blob([json], { type: "application/json" })
     const url = URL.createObjectURL(blob)
 
-    // Kiểm tra chrome.downloads API
     if (chrome.downloads && typeof chrome.downloads.download === "function") {
       chrome.downloads.download(
         {
@@ -253,7 +249,6 @@ function exportCredentials() {
         }
       )
     } else {
-      // Phương án dự phòng: dùng thẻ <a>
       const a = document.createElement("a")
       a.href = url
       a.download = `password_manager_backup_${
@@ -321,7 +316,6 @@ function importCredentials(event) {
           })
           .filter((cred) => cred !== null)
 
-        // Kiểm tra trùng lặp
         const mergedCredentials = [...existingCredentials]
         newCredentials.forEach((newCred) => {
           const isDuplicate = existingCredentials.some(
@@ -371,9 +365,11 @@ function displayCredentials() {
           cred.password,
           "secret-key-123"
         ).toString(CryptoJS.enc.Utf8)
+        const faviconUrl = `https://www.google.com/s2/favicons?domain=${cred.url}`
         const div = document.createElement("div")
         div.className = "credential"
         div.innerHTML = `
+                    <img src="${faviconUrl}" class="favicon" onerror="this.style.display='none'">
                     <strong>${cred.url}</strong><br>
                     Username: ${cred.username}<br>
                     Password: <span class="password" data-password="${decryptedPassword}" id="password-${index}">••••••••</span>
@@ -409,6 +405,15 @@ function clearCredentials() {
       displayCredentials()
     })
   }
+}
+
+function logout() {
+  clearInterval(timerInterval)
+  document.getElementById("timer").textContent = "Session expired"
+  document.getElementById("credentialsList").style.display = "none"
+  document.getElementById("addCredentialSection").classList.add("hidden")
+  document.getElementById("authSection").classList.remove("hidden")
+  chrome.storage.local.set({ authTimestamp: null })
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -476,6 +481,7 @@ document.addEventListener("DOMContentLoaded", function () {
   document
     .getElementById("importFileInput")
     .addEventListener("change", importCredentials)
+  document.getElementById("logoutButton").addEventListener("click", logout)
 
   document
     .getElementById("newUrl")

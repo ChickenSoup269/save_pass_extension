@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Password Manager",
-  "version": "1.6",
-  "description": "A password manager extension with user-defined master password, autofill, export/import credentials, and custom icon",
+  "version": "1.7",
+  "description": "A password manager extension with user-defined master password, autofill, export/import credentials, custom icon, and logout",
   "permissions": [
     "activeTab",
     "storage",
@@ -29,7 +29,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["crypto-js.min.js", "all.min.css"],
+      "resources": ["crypto-js.min.js"],
       "matches": ["<all_urls>"]
     }
   ]
