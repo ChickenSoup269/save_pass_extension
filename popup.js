@@ -470,7 +470,7 @@ function displayCredentials() {
             cred.password,
             "secret-key-123"
           ).toString(CryptoJS.enc.Utf8)
-          const faviconUrl = `https://www.google.com/s2/favicons?domain=${cred.url}`
+          const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${cred.url}`
           const div = document.createElement("div")
           div.className = "credential"
           div.innerHTML = `
